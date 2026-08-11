@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>訂單管理系統 - Order Management System</title>
+  <meta name="description" content="串接 n8n Webhook API 之 Microsoft Fluent 2 活潑卡片式訂單管理系統，支援查詢、全文檢索、刪除、資料更新與操作歷史 Log 追蹤。">
+  
+  <!-- CSS Styles -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="container header-content">
+      <div class="brand">
+        <div class="brand-icon">📦</div>
+        <div>
+          <h1 class="brand-title">訂單管理系統</h1>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Environment Badge (Read from config.json) -->
+        <div id="envBadge" class="env-badge test" title="讀取中...">
+          <span class="status-dot"></span> 讀取設定中...
+        </div>
+
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+          <button class="tab-btn active" data-tab="ordersTab">
+            <span>📦</span> 訂單總覽 (卡片)
+          </button>
+          <button class="tab-btn" data-tab="logsTab">
+            <span>📋</span> 操作日誌
+          </button>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="container">
+    
+    <!-- Tab 1: Orders Overview View (Fluent 2 Vibrant Cards Grid) -->
+    <section id="ordersTab" class="tab-content active">
+      
+      <!-- Stats Cards -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label"><span class="stat-icon">📊</span> 總訂單數量</div>
+          <div class="stat-value" id="statTotalOrders">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><span class="stat-icon">💰</span> 累積訂購總金額</div>
+          <div class="stat-value" id="statTotalAmount">$0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><span class="stat-icon">✅</span> 已審核通過數量</div>
+          <div class="stat-value" id="statApprovedCount">0 / 0</div>
+        </div>
+      </div>
+
+      <!-- Control Bar (Search & Manual Refresh) -->
+      <div class="control-bar">
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" class="search-input" placeholder="全文檢索 (可對姓名、電話、Email、商品、訂單編號搜尋)...">
+          <button id="clearSearchBtn" class="clear-search-btn" title="清除搜尋">✕</button>
+        </div>
+
+        <div>
+          <button id="refreshBtn" class="btn btn-secondary" title="重新整理資料">
+            <span>🔄</span> 重新整理列表
+          </button>
+        </div>
+      </div>
+
+      <!-- FLUENT 2 ORDERS CARDS GRID -->
+      <div id="ordersCardsGrid" class="orders-cards-grid">
+        <!-- Rendered via JS -->
+      </div>
+
+      <!-- Table Loading State -->
+      <div id="tableLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>正在發送 Webhook 請求中，請稍候...</p>
+      </div>
+
+      <!-- Table Empty State -->
+      <div id="tableEmpty" class="empty-state" style="display: none;">
+        <div class="empty-icon">📂</div>
+        <h3>未找到任何符合條件的訂單</h3>
+        <p style="margin-top: 6px; font-size: 0.88rem;">請嘗試變更搜尋關鍵字或點擊重新整理</p>
+      </div>
+
+    </section>
+
+    <!-- Tab 2: Activity / Operation Logs View -->
+    <section id="logsTab" class="tab-content">
+      
+      <div class="control-bar" style="margin-bottom: 20px;">
+        <div>
+          <h2 style="font-size: 1.15rem; font-weight: 700;">📋 操作與數據異動紀錄 (Log History)</h2>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 2px;">
+            詳細記錄所有「欄位更新 (保留原數據與新數據)」與「刪除訂單 (完整備份快照)」
+          </p>
+        </div>
+        <button id="clearLogsBtn" class="btn btn-secondary" style="font-size: 0.82rem;">
+          <span>🗑️</span> 清空日誌紀錄
+        </button>
+      </div>
+
+      <div id="logTimeline" class="log-timeline">
+        <!-- Rendered via JS -->
+      </div>
+
+      <div id="emptyLogState" class="empty-state" style="display: none;">
+        <div class="empty-icon">📝</div>
+        <h3>尚無任何操作日誌紀錄</h3>
+        <p style="margin-top: 6px; font-size: 0.88rem;">當您執行「編輯姓名/電話/Email」或「刪除訂單」時，系統會自動紀錄於此處</p>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Edit Order Modal (novalidate added to allow custom JS feedback) -->
+  <div id="editModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">✏️ 編輯訂單基本資料</h3>
+        <button id="closeEditModalBtn" class="modal-close" type="button">✕</button>
+      </div>
+      <form id="editForm" novalidate>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">訂單編號 (ReadOnly)</label>
+            <input type="text" id="editOrderId" class="form-control" readonly style="opacity: 0.7; font-family: monospace;">
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="editName">訂購人姓名 (name)</label>
+            <input type="text" id="editName" class="form-control" placeholder="請輸入姓名">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editPhone">聯絡電話 (phone)</label>
+            <input type="text" id="editPhone" class="form-control" placeholder="請輸入電話號碼">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editEmail">Email 郵件 (email)</label>
+            <input type="text" id="editEmail" class="form-control" placeholder="例如：user@example.com">
+          </div>
+
+          <div class="form-hint">
+            💡 備註：儲存變更時，系統將對修改之欄位發送 PUT 請求更新，並記錄原始舊數值以供日誌追蹤。
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelEditBtn" class="btn btn-secondary">取消</button>
+          <button type="submit" id="saveEditBtn" class="btn btn-primary">儲存變更</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Order Confirmation Modal -->
+  <div id="deleteModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" style="color: var(--color-danger);">⚠️ 刪除訂單確認</h3>
+        <button id="closeDeleteModalBtn" class="modal-close" type="button">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>您確定要刪除訂單 <strong id="deleteOrderIdDisplay" class="order-id">#ORD-XXXX</strong> 嗎？</p>
+        <p style="margin-top: 10px; font-size: 0.88rem; color: var(--color-warning);">
+          🔴 注意：此操作會發送 DELETE 請求至 n8n Webhook。系統會自動將刪除前的完整資料快照封存於「操作日誌」中以防遺失。
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelDeleteBtn" class="btn btn-secondary">取消</button>
+        <button type="button" id="confirmDeleteBtn" class="btn btn-danger">確認刪除</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- JavaScript Entry Point -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

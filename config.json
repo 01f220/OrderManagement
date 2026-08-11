@@ -1,0 +1,13 @@
+{
+  "activeEnv": "production",
+  "environments": {
+    "test": {
+      "name": "測試環境 (Test)",
+      "baseUrl": "https://n8n-lpv5iwl5.roamerhost.com/webhook-test"
+    },
+    "production": {
+      "name": "正式環境 (Production)",
+      "baseUrl": "https://n8n-lpv5iwl5.roamerhost.com/webhook"
+    }
+  }
+}
