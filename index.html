@@ -12,6 +12,11 @@
 </head>
 <body>
 
+  <!-- Ambient Background Blobs (decorative, behind all content) -->
+  <div class="ambient-blob ambient-blob-1" aria-hidden="true"></div>
+  <div class="ambient-blob ambient-blob-2" aria-hidden="true"></div>
+  <div class="ambient-blob ambient-blob-3" aria-hidden="true"></div>
+
   <!-- App Header -->
   <header class="app-header">
     <div class="container header-content">
@@ -32,6 +37,9 @@
         <nav class="nav-tabs">
           <button class="tab-btn active" data-tab="ordersTab">
             <span>📦</span> 訂單總覽 (卡片)
+          </button>
+          <button class="tab-btn" data-tab="dashboardTab">
+            <span>📊</span> 數據分析
           </button>
           <button class="tab-btn" data-tab="logsTab">
             <span>📋</span> 操作日誌
@@ -61,6 +69,13 @@
           <div class="stat-label"><span class="stat-icon">✅</span> 已審核通過數量</div>
           <div class="stat-value" id="statApprovedCount">0 / 0</div>
         </div>
+      </div>
+
+      <!-- View Mode Switch (Date / Category / Amount) -->
+      <div class="view-mode-switch">
+        <button class="view-mode-btn active" data-view-mode="date" type="button">🗓️ 時間排序</button>
+        <button class="view-mode-btn" data-view-mode="category" type="button">🏷️ 類型分區</button>
+        <button class="view-mode-btn" data-view-mode="amount" type="button">💰 金額排序</button>
       </div>
 
       <!-- Control Bar (Search & Manual Refresh) -->
@@ -96,9 +111,64 @@
         <p style="margin-top: 6px; font-size: 0.88rem;">請嘗試變更搜尋關鍵字或點擊重新整理</p>
       </div>
 
+      <!-- Floating Add Order Button -->
+      <button id="fabAddBtn" class="fab-add-btn" type="button">
+        <span aria-hidden="true">＋</span>
+        <span class="fab-tooltip">新增訂單</span>
+      </button>
+
     </section>
 
-    <!-- Tab 2: Activity / Operation Logs View -->
+    <!-- Tab 2: Dashboard / Category Analytics View -->
+    <section id="dashboardTab" class="tab-content">
+
+      <!-- Overall KPI Tiles -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label"><span class="stat-icon">📦</span> 總訂單數量</div>
+          <div class="stat-value" id="dashStatTotalOrders">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><span class="stat-icon">💰</span> 累積訂購總金額</div>
+          <div class="stat-value" id="dashStatTotalAmount">$0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label"><span class="stat-icon">🏷️</span> 商品分類數量</div>
+          <div class="stat-value" id="dashStatCategoryCount">0</div>
+        </div>
+      </div>
+
+      <div id="dashboardContent">
+        <!-- Category Breakdown Cards -->
+        <div class="dashboard-section-title">分類統計</div>
+        <div id="dashboardCategoryGrid" class="dashboard-category-grid">
+          <!-- Rendered via JS -->
+        </div>
+
+        <!-- Bar Chart Panel -->
+        <div class="dashboard-chart-panel">
+          <div class="dashboard-chart-header">
+            <div class="dashboard-section-title" style="margin:0;">分類比較</div>
+            <div class="chart-metric-switch">
+              <button class="chart-metric-btn active" data-metric="total" type="button">💰 總金額</button>
+              <button class="chart-metric-btn" data-metric="count" type="button">📦 訂單數</button>
+            </div>
+          </div>
+          <div id="dashboardBarChart" class="bar-chart">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+      </div>
+
+      <div id="dashboardEmpty" class="empty-state" style="display: none;">
+        <div class="empty-icon">📊</div>
+        <h3>尚無資料可供分析</h3>
+        <p style="margin-top: 6px; font-size: 0.88rem;">新增訂單後，此頁會自動顯示各分類的統計與比較圖表</p>
+      </div>
+
+    </section>
+
+    <!-- Tab 3: Activity / Operation Logs View -->
     <section id="logsTab" class="tab-content">
       
       <div class="control-bar" style="margin-bottom: 20px;">
@@ -127,42 +197,100 @@
 
   </main>
 
-  <!-- Edit Order Modal (novalidate added to allow custom JS feedback) -->
-  <div id="editModal" class="modal-overlay">
-    <div class="modal-card">
+  <!-- Order Form Modal (shared for Add / Edit, novalidate to allow custom JS feedback) -->
+  <div id="orderFormModal" class="modal-overlay">
+    <div class="modal-card modal-card-wide">
       <div class="modal-header">
-        <h3 class="modal-title">✏️ 編輯訂單基本資料</h3>
-        <button id="closeEditModalBtn" class="modal-close" type="button">✕</button>
+        <h3 class="modal-title" id="orderFormTitle">🆕 新增訂單</h3>
+        <button id="closeOrderFormBtn" class="modal-close" type="button">✕</button>
       </div>
-      <form id="editForm" novalidate>
+      <form id="orderForm" novalidate>
         <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">訂單編號 (ReadOnly)</label>
-            <input type="text" id="editOrderId" class="form-control" readonly style="opacity: 0.7; font-family: monospace;">
-          </div>
-          
-          <div class="form-group">
-            <label class="form-label" for="editName">訂購人姓名 (name)</label>
-            <input type="text" id="editName" class="form-control" placeholder="請輸入姓名">
+
+          <div id="overwriteNotice" class="overwrite-notice" style="display:none;">
+            <div>⚠️ 此訂單編號已存在，送出後將<strong>更新既有訂單資料</strong>，請確認資料無誤。</div>
+            <label class="check-line">
+              <input type="checkbox" id="overwriteConfirmCheckbox">
+              我已確認並同意覆寫此訂單
+            </label>
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="editPhone">聯絡電話 (phone)</label>
-            <input type="text" id="editPhone" class="form-control" placeholder="請輸入電話號碼">
+          <div id="editModeNotice" class="edit-mode-notice" style="display:none;">
+            ✏️ 編輯模式：儲存後將更新此筆訂單的完整資料。
           </div>
 
-          <div class="form-group">
-            <label class="form-label" for="editEmail">Email 郵件 (email)</label>
-            <input type="text" id="editEmail" class="form-control" placeholder="例如：user@example.com">
+          <div class="form-section-title">客戶資料</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="ofOrderName">訂購人姓名 <span class="req-mark">*</span></label>
+              <input type="text" id="ofOrderName" class="form-control" placeholder="請輸入姓名" maxlength="50">
+              <span class="field-error" id="err-ofOrderName"></span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="ofPhone">聯絡電話 <span class="req-mark">*</span></label>
+              <input type="text" id="ofPhone" class="form-control" placeholder="例如：0912-345-678" maxlength="30">
+              <span class="field-error" id="err-ofPhone"></span>
+            </div>
+
+            <div class="form-group form-group-full">
+              <label class="form-label" for="ofEmail">Email 郵件</label>
+              <input type="text" id="ofEmail" class="form-control" placeholder="例如：user@example.com" maxlength="120">
+              <span class="field-error" id="err-ofEmail"></span>
+            </div>
+          </div>
+
+          <div class="form-section-title">訂單資料</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label class="form-label" for="ofOrderNo">訂單編號 <span class="req-mark">*</span></label>
+              <input type="text" id="ofOrderNo" class="form-control" placeholder="例如：ORD202601110093" maxlength="60">
+              <span class="field-error" id="err-ofOrderNo"></span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="ofOrderDate">訂購日期 <span class="req-mark">*</span></label>
+              <input type="datetime-local" id="ofOrderDate" class="form-control">
+              <span class="field-error" id="err-ofOrderDate"></span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="ofProductType">商品分類 <span class="req-mark">*</span></label>
+              <select id="ofProductType" class="form-control">
+                <option value="">請選擇分類</option>
+              </select>
+              <span class="field-error" id="err-ofProductType"></span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="ofVerify">審核狀態</label>
+              <select id="ofVerify" class="form-control">
+                <option value="">待審核</option>
+                <option value="已審核">已審核</option>
+                <option value="駁回">駁回</option>
+              </select>
+            </div>
+
+            <div class="form-group form-group-full">
+              <label class="form-label" for="ofProductName">商品名稱 <span class="req-mark">*</span></label>
+              <input type="text" id="ofProductName" class="form-control" placeholder="例如：不鏽鋼雙層保溫瓶 750ml x 3" maxlength="200">
+              <span class="field-error" id="err-ofProductName"></span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="ofPrice">購買金額 <span class="req-mark">*</span></label>
+              <input type="number" id="ofPrice" class="form-control" placeholder="0" min="0" step="1">
+              <span class="field-error" id="err-ofPrice"></span>
+            </div>
           </div>
 
           <div class="form-hint">
-            💡 備註：儲存變更時，系統將對修改之欄位發送 PUT 請求更新，並記錄原始舊數值以供日誌追蹤。
+            💡 送出後系統會以「訂單編號」呼叫 <code>POST /Order/Insert</code>：編號不存在則新增，已存在則更新整筆資料。
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" id="cancelEditBtn" class="btn btn-secondary">取消</button>
-          <button type="submit" id="saveEditBtn" class="btn btn-primary">儲存變更</button>
+          <button type="button" id="cancelOrderFormBtn" class="btn btn-secondary">取消</button>
+          <button type="submit" id="saveOrderFormBtn" class="btn btn-primary">確認送出</button>
         </div>
       </form>
     </div>

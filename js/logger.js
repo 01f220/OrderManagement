@@ -29,26 +29,41 @@ export const LoggerManager = {
   },
 
   /**
-   * Record field update operation
-   * @param {string} orderId 
-   * @param {string} fieldKey - 'name' | 'phone' | 'email'
-   * @param {string} fieldLabel - '訂購人姓名' | '電話' | 'Email'
-   * @param {string} oldValue 
-   * @param {string} newValue 
+   * Record a new order creation
+   * @param {string} orderId
+   * @param {Object} orderData - Full submitted order payload
    */
-  logUpdate(orderId, fieldKey, fieldLabel, oldValue, newValue) {
+  logInsert(orderId, orderData) {
+    const entry = {
+      id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+      type: 'INSERT',
+      orderId: orderId,
+      timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
+      snapshot: orderData || {},
+      details: `新增訂單 #${orderId} 成功`
+    };
+
+    this.logs.unshift(entry);
+    this.save();
+    return entry;
+  },
+
+  /**
+   * Record a full-order update, including the diff of every changed field.
+   * @param {string} orderId
+   * @param {Array<{label: string, oldValue: *, newValue: *}>} diffs - Changed fields (before/after)
+   */
+  logUpdate(orderId, diffs) {
+    const changedList = (diffs || []).map(d => d.label).join('、') || '(無欄位變動)';
     const entry = {
       id: 'log_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
       type: 'UPDATE',
       orderId: orderId,
       timestamp: new Date().toLocaleString('zh-TW', { hour12: false }),
-      fieldKey: fieldKey,
-      fieldLabel: fieldLabel,
-      oldValue: oldValue ?? '(無資料)',
-      newValue: newValue ?? '(空)',
-      details: `更新 ${fieldLabel} 從 「${oldValue || '無'}」 修改為 「${newValue}」`
+      diffs: diffs || [],
+      details: `更新訂單 #${orderId}，異動欄位：${changedList}`
     };
-    
+
     this.logs.unshift(entry);
     this.save();
     return entry;
